@@ -14,11 +14,8 @@ local ESX
 
 SetTimeout(500, function()
 	ESX = exports.es_extended:getSharedObject()
-    local customInventory = ESX.GetConfig().CustomInventory
-        
-	if customInventory ~= nil and customInventory ~= "ox" then
-        error('ox_inventory requires Config.CustomInventory to be set to "ox" in the ESX Config.')
-    elseif ESX.CreatePickup then
+
+	if ESX.CreatePickup then
 		error('ox_inventory requires a ESX Legacy v1.6.0 or above, refer to the documentation.')
 	end
 

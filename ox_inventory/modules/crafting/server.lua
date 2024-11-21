@@ -43,7 +43,7 @@ local function createCraftingBench(id, data)
 	end
 end
 
-for id, data in pairs(lib.load('data.crafting') or {}) do createCraftingBench(id, data) end
+for id, data in pairs(lib.load('data.crafting')) do createCraftingBench(id, data) end
 
 ---falls back to player coords if zones and points are both nil
 ---@param source number
@@ -120,8 +120,6 @@ lib.callback.register('ox_inventory:craftItem', function(source, id, index, reci
 
 			for name, needs in pairs(recipe.ingredients) do
 				local slots = items[name] or items
-
-                if #slots == 0 then return end
 
 				for i = 1, #slots do
 					local slot = slots[i]
@@ -213,14 +211,6 @@ lib.callback.register('ox_inventory:craftItem', function(source, id, index, reci
 							end
 
 							invSlot.count -= 1
-                            invSlot.weight = Inventory.SlotWeight(item, invSlot)
-
-							left:syncSlotsWithClients({
-								{
-									item = invSlot,
-									inventory = left.id
-								}
-							}, true)
 						else
                             Items.UpdateDurability(left, invSlot, item, durability < 0 and 0 or durability)
 						end

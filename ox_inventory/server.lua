@@ -1,10 +1,5 @@
 if not lib then return end
 
-require 'modules.bridge.server'
-require 'modules.crafting.server'
-require 'modules.shops.server'
-require 'modules.pefcl.server'
-
 if GetConvar('inventory:versioncheck', 'true') == 'true' then
 	lib.versionCheck('overextended/ox_inventory')
 end
@@ -13,6 +8,11 @@ local TriggerEventHooks = require 'modules.hooks.server'
 local db = require 'modules.mysql.server'
 local Items = require 'modules.items.server'
 local Inventory = require 'modules.inventory.server'
+
+require 'modules.crafting.server'
+require 'modules.shops.server'
+require 'modules.pefcl.server'
+require 'modules.bridge.server'
 
 ---@param player table
 ---@param data table?
@@ -99,10 +99,8 @@ end
 local function openInventory(source, invType, data, ignoreSecurityChecks)
 	if Inventory.Lock then return false end
 
-	local left = Inventory(source)
+	local left = Inventory(source) --[[@as OxInventory]]
 	local right, closestCoords
-
-    if not left then return end
 
     left:closeInventory(true)
 	Inventory.CloseAll(left, source)
@@ -111,60 +109,33 @@ local function openInventory(source, invType, data, ignoreSecurityChecks)
         data = nil
     end
 
-    local playerPed = left.player.ped
-
 	if data then
         local isDataTable = type(data) == 'table'
 
 		if invType == 'stash' then
-			right = Inventory(data, left, ignoreSecurityChecks)
+			right = Inventory(data, left)
 			if right == false then return false end
 		elseif isDataTable then
 			if data.netid then
-                local entity = NetworkGetEntityFromNetworkId(data.netid)
-
-                if not entity then return end
-
-                if not ignoreSecurityChecks then
-                    if #(GetEntityCoords(playerPed) - GetEntityCoords(entity)) > 16 then return end
-                end
-
-                if invType == 'glovebox' then
-                    if not ignoreSecurityChecks and GetVehiclePedIsIn(playerPed, false) ~= entity then
-                        return
-                    end
-
-                    if not data.id then
-                        data.id = 'glove'..GetVehicleNumberPlateText(entity)
-                    end
-                end
-
                 if invType == 'trunk' then
-                    local lockStatus = ignoreSecurityChecks and 0 or GetVehicleDoorLockStatus(entity)
+                    local entity = NetworkGetEntityFromNetworkId(data.netid)
+                    local lockStatus = entity > 0 and GetVehicleDoorLockStatus(entity)
 
                     -- 0: no lock; 1: unlocked; 8: boot unlocked
                     if lockStatus > 1 and lockStatus ~= 8 then
                         return false, false, 'vehicle_locked'
                     end
-
-                    if not data.id  then
-                        data.id = 'trunk'..GetVehicleNumberPlateText(entity)
-                    end
                 end
 
 				data.type = invType
 				right = Inventory(data)
-
-                if right and data.netid ~= right.netid then
-                    return
-                end
 			elseif invType == 'drop' then
 				right = Inventory(data.id)
 			else
 				return
 			end
 		elseif invType == 'policeevidence' then
-			if ignoreSecurityChecks or server.hasGroup(left, shared.police) then
+			if server.hasGroup(left, shared.police) then
 				right = Inventory(('evidence-%s'):format(data))
 			end
 		elseif invType == 'dumpster' then
@@ -217,7 +188,7 @@ local function openInventory(source, invType, data, ignoreSecurityChecks)
 		end
 
 		if not ignoreSecurityChecks and right.coords then
-			closestCoords = getClosestStashCoords(playerPed, right.coords)
+			closestCoords = getClosestStashCoords(left.player.ped, right.coords)
 
 			if not closestCoords then return end
 		end
@@ -398,7 +369,7 @@ lib.callback.register('ox_inventory:useItem', function(source, itemName, slot, m
 				end
 			elseif not item.weapon and server.UseItem then
                 inventory.usingItem = data
-				-- This is used to call an external useItem function, i.e. ESX.UseItem
+				-- This is used to call an external useItem function, i.e. ESX.UseItem / QBCore.Functions.CanUseItem
 				-- If an error is being thrown on item use there is no internal solution. We previously kept a list
 				-- of usable items which led to issues when restarting resources (for obvious reasons), but config
 				-- developers complained the inventory broke their items. Safely invoking registered item callbacks
@@ -407,13 +378,6 @@ lib.callback.register('ox_inventory:useItem', function(source, itemName, slot, m
 			end
 
 			data.consume = consume
-
-            if not TriggerEventHooks('usingItem', {
-				source = source,
-                inventoryId = inventory and inventory.id,
-                item = inventory.items[slot],
-                consume = consume
-			}) then return false end
 
             ---@type boolean
 			local success = lib.callback.await('ox_inventory:usingItem', source, data, noAnim)
@@ -498,7 +462,7 @@ RegisterCommand('convertinventory', function(source, args)
 	local convert = arg and conversionScript[arg]
 
 	if not convert then
-		return warn('Invalid conversion argument. Valid options: esx, esxproperty')
+		return warn('Invalid conversion argument. Valid options: esx, esxproperty, qb, linden')
 	end
 
 	CreateThread(convert)
